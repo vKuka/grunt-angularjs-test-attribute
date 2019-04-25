@@ -4,6 +4,7 @@ var ATTRS_TYPES = { // Аттрибуты используемые для ген
     NAME: 'name',
     NG_CLICK: 'ng-click',
     NG_MODEL: 'ng-model',
+    UI_SREF: 'ui-sref',
     TRANSLATE: 'translate'
 };
 var ATTR_TYPE_PRIORITY = getAttrPriority(); // Приоритеты аттрибутов
@@ -11,11 +12,12 @@ var fs = require('fs');
 var trumpet = require('trumpet');
 
 /**
- * Получение приоритетта аттрибутов
+ * Получение приоритетта аттрибутов (Чем больше цифра тем больше приоритет)
  */
 function getAttrPriority() {
     var priority = {};
     
+    priority[ATTRS_TYPES.UI_SREF] = 0;
     priority[ATTRS_TYPES.NG_CLICK] = 1;
     priority[ATTRS_TYPES.NAME] = 2;
     priority[ATTRS_TYPES.NG_MODEL] = 3;
@@ -61,7 +63,7 @@ function Parser(grunt, options, file) {
     this.grunt = grunt;
     this.options = options;
     this.pipeline = [];
-    this.tags = 'button, a, input, *[ng-click]';
+    this.tags = 'button, a, textarea, input, select, ui-select, cq-radio, ng-message, *[ng-click]';
     this.testAttr = 'test-id';
     
     this.createPipeline();
@@ -97,6 +99,8 @@ Parser.prototype.getNewTestAttribute = function (elem) {
                 currentAttr = attrNames[i];
             } else if (ATTRS_TYPES.TRANSLATE === attrNames[i] && (!currentAttr || ATTR_TYPE_PRIORITY[ATTRS_TYPES.TRANSLATE] > ATTR_TYPE_PRIORITY[currentAttr]) && attrs[attrNames[i]] !== true) {
                 currentAttr = attrNames[i];
+            } else if (ATTRS_TYPES.UI_SREF === attrNames[i] && (!currentAttr || ATTR_TYPE_PRIORITY[ATTRS_TYPES.TRANSLATE] > ATTR_TYPE_PRIORITY[currentAttr])) {
+                currentAttr = attrNames[i];
             }
         }
         return currentAttr;
@@ -112,6 +116,8 @@ Parser.prototype.getNewTestAttribute = function (elem) {
             testId = getTestIdFromNgModel(attrValue);
         } else if (attr === ATTRS_TYPES.TRANSLATE) {
             testId = getTestIdFromTranslate(attrValue);
+        } else if (attr === ATTRS_TYPES.UI_SREF) {
+            testId = getTestIdFromSref(attrValue);
         } else {
             testId = 'noTestId';
         }
@@ -120,64 +126,74 @@ Parser.prototype.getNewTestAttribute = function (elem) {
         
         function getTestIdFromName(value) {
             return value.replace(/(vm\.)?/g, '').replace(/\W/g, '.').replace(/\.+/g, '.').replace(/^(\.?)(.*)/, '$2').replace(/(.*)\.$/, '$1');
-            //messenger_work_time_new  ->  messenger_work_time_new
-            //{{::emoji.name}}  ->  emoji.name
-            //linkForDeveloper  -> linkForDeveloper
+            /*messenger_work_time_new  ->  messenger_work_time_new
+            {{::emoji.name}}  ->  emoji.name
+            linkForDeveloper  -> linkForDeveloper*/
         }
         
         function getTestIdFromNgClick(value) {
             if (/.\(.*\)\;?$/.test(value)) {
                 return value.replace(/^(vm\.)?(\W+)?(vm\.)?(\w+).*/, '$4');
-                //$close()  ->  close
-                //vm.confirm()  ->  confirm
-                //vm.openEmailPreviewModal()  ->  openEmailPreviewModal
-                //vm.trackClickActivate(); vm.saveActivate();  ->  trackClickActivate
-                //event.userEventsOpen = !event.userEventsOpen; loadGroupEvents(event, null)  ->  event
-                //trackClickSendSubscriptionConfirmationEmail(); user.email_status && [EMAIL_STATUSES.CONFIRMED, EMAIL_STATUSES.NOT_CONFIRMED].indexOf(user.email_status.status) != -1 && openSendSubscriptionConfirmationEmailModal();  ->  trackClickSendSubscriptionConfirmationEmail
-                //trackClickBanUser(); openBanUserModal(false);  ->  trackClickBanUser
-                //writeOneUser('popup_small')  ->  writeOneUser
-                //(vm.teamMemberModel.hasPermissions(vm.djangoUser.prefs[vm.currentApp.id].permissions, teamMember.permissions) && teamMember.id != vm.currentTeamMember.id) && (vm.trackClickEditTeamMember() || vm.openEditTeamMemberModal(teamMember))  ->  teamMemberModel
-                //!vm.isPreviewShown && vm.onPopupBlockClick({popupBlock: vm.popup.bodyJson.footer})  ->  isPreviewShown
-                //vm.trackClickGetDemo(); vm.sendChatMessage('conversationsStatisticsPaywall.getDemoButton.chatMessage' | translate);  ->  trackClickGetDemo
+                /*$close()  ->  close
+                vm.confirm()  ->  confirm
+                vm.openEmailPreviewModal()  ->  openEmailPreviewModal
+                vm.trackClickActivate(); vm.saveActivate();  ->  trackClickActivate
+                event.userEventsOpen = !event.userEventsOpen; loadGroupEvents(event, null)  ->  event
+                trackClickSendSubscriptionConfirmationEmail(); user.email_status && [EMAIL_STATUSES.CONFIRMED, EMAIL_STATUSES.NOT_CONFIRMED].indexOf(user.email_status.status) != -1 && openSendSubscriptionConfirmationEmailModal();  ->  trackClickSendSubscriptionConfirmationEmail
+                trackClickBanUser(); openBanUserModal(false);  ->  trackClickBanUser
+                writeOneUser('popup_small')  ->  writeOneUser
+                (vm.teamMemberModel.hasPermissions(vm.djangoUser.prefs[vm.currentApp.id].permissions, teamMember.permissions) && teamMember.id != vm.currentTeamMember.id) && (vm.trackClickEditTeamMember() || vm.openEditTeamMemberModal(teamMember))  ->  teamMemberModel
+                !vm.isPreviewShown && vm.onPopupBlockClick({popupBlock: vm.popup.bodyJson.footer})  ->  isPreviewShown
+                vm.trackClickGetDemo(); vm.sendChatMessage('conversationsStatisticsPaywall.getDemoButton.chatMessage' | translate);  ->  trackClickGetDemo*/
             } else {
                 return value.replace(/^(vm\.)?(\$\w+)?\W?(\w+).*/, '$3');
-                //vm.isAppExists = !vm.isAppExists  -> isAppExists
-                //propsEdit[prop.key] = !propsEdit[key]  -> propsEdit
-                //systemEdit.$phone = !systemEdit.$phone  ->  systemEdit
-                //$parent.newUserNote = {}  ->  newUserNote
-                //newProp._edit = true  ->  newProp
-                //segmentsExpand = !segmentsExpand  ->  segmentsExpand
-                //vm.extraPropertiesIsCollapsed = !vm.extraPropertiesIsCollapsed  ->  extraPropertiesIsCollapsed
-                //vm.onboardingStatuses[step.name].collapsed = !vm.onboardingStatuses[step.name].collapsed  ->  onboardingStatuses
-                //$event.stopPropagation(); vm.openRemoveModal(vm.template); vm.isOpen = false  ->  stopPropagation
-                //event.propsOpened = !event.propsOpened && event.propsArray.length && event.type.name != '$user_merged'  ->  propsOpened
-                //propsEdit[prop.key] = !propsEdit[key]  ->  propsEdit
+                /*vm.isAppExists = !vm.isAppExists  -> isAppExists
+                propsEdit[prop.key] = !propsEdit[key]  -> propsEdit
+                systemEdit.$phone = !systemEdit.$phone  ->  systemEdit
+                $parent.newUserNote = {}  ->  newUserNote
+                newProp._edit = true  ->  newProp
+                segmentsExpand = !segmentsExpand  ->  segmentsExpand
+                vm.extraPropertiesIsCollapsed = !vm.extraPropertiesIsCollapsed  ->  extraPropertiesIsCollapsed
+                vm.onboardingStatuses[step.name].collapsed = !vm.onboardingStatuses[step.name].collapsed  ->  onboardingStatuses
+                $event.stopPropagation(); vm.openRemoveModal(vm.template); vm.isOpen = false  ->  stopPropagation
+                event.propsOpened = !event.propsOpened && event.propsArray.length && event.type.name != '$user_merged'  ->  propsOpened
+                propsEdit[prop.key] = !propsEdit[key]  ->  propsEdit*/
             }
             
         }
         
         function getTestIdFromNgModel(value) {
             return value.replace(/(vm\.)?/g, '').replace(/\W/g, '.').replace(/\.+/g, '.').replace(/^(\.?)(.*)/, '$2').replace(/(.*)\.$/, '$1');
-            //vm.messagePart.type  ->  messagePart.type
-            //question.checked  ->  question.checked
-            //vm.channel  ->  channel
-            //vm.chatSettings.messenger_auto_reply_show_config.not_work_enabled  ->  chatSettings.messenger_auto_reply_show_config.not_work_enabled
-            //automaticReplyItem.strings[lang][tab].phone_unknown  ->  automaticReplyItem.strings.lang.tab.phone_unknown
-            //$parent.$parent.$parent.promoCode  ->  parent.parent.parent.promoCode
+            /*vm.messagePart.type  ->  messagePart.type
+            question.checked  ->  question.checked
+            vm.channel  ->  channel
+            vm.chatSettings.messenger_auto_reply_show_config.not_work_enabled  ->  chatSettings.messenger_auto_reply_show_config.not_work_enabled
+            automaticReplyItem.strings[lang][tab].phone_unknown  ->  automaticReplyItem.strings.lang.tab.phone_unknown
+            $parent.$parent.$parent.promoCode  ->  parent.parent.parent.promoCode*/
         }
         
         function getTestIdFromTranslate(value) {
             if (/.*(\}\})$/.test(value)) {
                 return value.replace(/^(\w+)\..+/, '$1') + '.' + value.replace(/.+\{\{(\:\:)?(vm\.)?(.+)\}\}$/, '$3');
-                //general.forward.{{::vm.sdf}}  ->  general.sdf
-                //autoMessages.table.messageStatuses.{{::status}}  ->  autoMessages.status
-                //general.forward.{{vm.sdf}}  ->  general.sdf
-                //autoMessages.table.messageStatuses.{{status}}  ->  autoMessages.status
+                /*general.forward.{{::vm.sdf}}  ->  general.sdf
+                autoMessages.table.messageStatuses.{{::status}}  ->  autoMessages.status
+                general.forward.{{vm.sdf}}  ->  general.sdf
+                autoMessages.table.messageStatuses.{{status}}  ->  autoMessages.status*/
             } else {
                 return value.replace(/^(\w+).*\.(\w+)$/, '$1.$2');
-                //header.templates.systemLogPopover.zeroData.haveNoSystemLogMessages  ->   header.haveNoSystemLogMessages
-                //general.forward  ->  general.forward
+                /*header.templates.systemLogPopover.zeroData.haveNoSystemLogMessages  ->   header.haveNoSystemLogMessages
+                general.forward  ->  general.forward*/
             }
+        }
+        
+        function getTestIdFromSref(value) {
+            return value.replace(/(.*)\(.+\)$/, '$1').replace(/^(\w+).*(\.\w+)$/, '$1$2');
+            /*account.content  ->  account.content
+            app.content.messages.auto.edit({messageId: vm.currentMessage.id})  ->  app.edit
+            app({appId: app.id})  ->  app
+            app  ->  app
+            app.content.trackmaster.details.configured({autoEventGroup: autoEvent.group, autoEventId: autoEvent.id})  ->  app.configured
+            app.content.conversations.statisticsPaywall  ->  app.statisticsPaywall*/
         }
         
         function toCamelCase(value) {
